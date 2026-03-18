@@ -1,5 +1,39 @@
+# Secrets / config
 .env
+
+# Python
 __pycache__/
 *.pyc
 *.pyo
+*.pyd
+*.pyw
+*.pyz
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+.venv/
+venv/
+env/
+
+# OS
 .DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Test artefacts — never commit real screenshots with PII
+test_input/
+test_output/
+
+# Logs produced by submit.sh
+logs/
+
+# Ruff cache
+.ruff_cache/

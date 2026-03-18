@@ -1,0 +1,80 @@
+name: Bug Report
+description: Something isn't working as expected
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug. Please fill in as much detail as you can.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: A clear and concise description of the bug.
+      placeholder: "When I run `python process.py ./input ./output`, ..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect to happen?
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Minimal steps to reproduce the behaviour.
+      placeholder: |
+        1. Run `python process.py ./input ./output --elements profile_pic`
+        2. See error ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant log output
+      description: Paste any terminal output or error messages here.
+      render: shell
+
+  - type: input
+    id: python_version
+    attributes:
+      label: Python version
+      placeholder: "e.g. 3.11.4"
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: "e.g. Ubuntu 22.04, macOS 14, Windows 11"
+    validations:
+      required: true
+
+  - type: input
+    id: pillow_version
+    attributes:
+      label: Pillow version
+      description: Output of `python -c "import PIL; print(PIL.__version__)"`
+      placeholder: "e.g. 10.3.0"
+
+  - type: dropdown
+    id: pixel_mode
+    attributes:
+      label: Pixel mode used
+      options:
+        - A (soft blur / mist)
+        - B (block mosaic)
+        - Not applicable
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context
+      description: Anything else that might be relevant (messaging app, screenshot resolution, etc.)
