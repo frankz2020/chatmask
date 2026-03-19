@@ -60,7 +60,8 @@ _IMAGE_EXTS = {".png", ".jpg", ".jpeg"}
 def _parse_elements(raw: str) -> set:
     parts = {s.strip() for s in raw.split(",") if s.strip()}
     unknown = parts - _VALID_ELEMENTS
-    assert not unknown, f"Unknown elements: {unknown}. Valid: {_VALID_ELEMENTS}"
+    if unknown:
+        raise ValueError(f"Unknown elements: {unknown}. Valid: {_VALID_ELEMENTS}")
     return parts
 
 
@@ -92,7 +93,8 @@ def _convert_norm_to_bbox(region: dict, orig_width: int, orig_height: int) -> tu
 def _parse_json_response(text: str) -> dict:
     json_start = text.find("{")
     json_end = text.rfind("}") + 1
-    assert json_start >= 0 and json_end > json_start, "No JSON object found in response"
+    if json_start < 0 or json_end <= json_start:
+        raise ValueError("No JSON object found in response")
     return json.loads(text[json_start:json_end])
 
 
@@ -228,7 +230,9 @@ def main() -> None:
 
     in_dir = Path(args.input_dir)
     out_dir = Path(args.output_dir)
-    assert in_dir.exists(), f"Input directory not found: {in_dir}"
+    if not in_dir.exists():
+        print(f"[process] ERROR: Input directory not found: {in_dir}", file=sys.stderr)
+        sys.exit(1)
     out_dir.mkdir(parents=True, exist_ok=True)
 
     elements = _parse_elements(args.elements)

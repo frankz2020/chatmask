@@ -40,13 +40,10 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: pip install -r requirements-standalone.txt
 
       - name: Check all modules import cleanly
         run: |
           python -c "import pixelate"
           python -c "import prompts"
           python -c "import vision"
-        env:
-          # Provide a dummy key so the import doesn't fail the env assertion
-          OPENROUTER_API_KEY: dummy-key-for-import-check

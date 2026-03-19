@@ -1,0 +1,5 @@
+# Standalone-mode dependencies (only needed when running process.py directly
+# without --bbox-json, i.e. when calling the OpenRouter vision API yourself).
+# Not required for OpenClaw skill usage.
+-r requirements.txt
+requests==2.32.5

@@ -30,11 +30,14 @@ Run this block before the first job. Every step is guarded so re-running is safe
 # Default install path — override by setting CHAT_PIXELATE_PATH before calling the skill
 CHAT_PIXELATE_PATH="${CHAT_PIXELATE_PATH:-$HOME/.openclaw/skills/chatmask}"
 
-# 1. Clone repo at a known, audited commit if not already present
-#    Audited commit: 160bb3a603cdaaf4ae529ab3d4c075446e0bbcda (frankz2020/chatmask, main)
+# 1. Clone repo and checkout the pinned, audited commit
+#    Audited commit: 62b0d1132e8cad8455ef29f74a98da486ff102d4 (frankz2020/chatmask, v1.1.0)
+PINNED_SHA="62b0d1132e8cad8455ef29f74a98da486ff102d4"
 if [ ! -d "$CHAT_PIXELATE_PATH/.git" ]; then
   git clone https://github.com/frankz2020/chatmask.git "$CHAT_PIXELATE_PATH"
 fi
+# Enforce the pinned commit — prevents silent drift if the branch moves
+(cd "$CHAT_PIXELATE_PATH" && git fetch --quiet origin && git checkout --quiet "$PINNED_SHA")
 
 # 2. Create virtualenv if not already present
 if [ ! -d "$CHAT_PIXELATE_PATH/.venv" ]; then
@@ -49,11 +52,12 @@ export CHAT_PIXELATE_PATH
 PYTHON="$CHAT_PIXELATE_PATH/.venv/bin/python3"
 ```
 
-> **What this installs:** Pillow (image processing), python-dotenv (optional .env
-> loading), and requests (used only in standalone/non-skill mode). No network
-> calls are made by the script during normal skill operation.
+> **What this installs:** Pillow (image processing) and python-dotenv (.env loader
+> for standalone use only). The `requests` package is **not** installed by the
+> skill — it is only needed for standalone/non-skill mode and lives in
+> `requirements-standalone.txt`. No network calls are made by the script at runtime.
 
-> **Network behavior:** The only outbound call in Setup is `git clone` (one-time)
+> **Network behavior:** The only outbound calls in Setup are `git clone` (one-time)
 > and `pip install` (one-time). During Workflow, `process.py` makes **no network
 > calls** when `--bbox-json` is supplied — all processing is local.
 
