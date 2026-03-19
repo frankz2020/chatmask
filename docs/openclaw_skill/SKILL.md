@@ -21,7 +21,12 @@ flags before running.
 
 - `CHAT_PIXELATE_PATH` points to the project root (e.g. `/home/ubuntu/chat_screenshot_pixelate`)
 - The project's `.env` contains `OPENROUTER_API_KEY`
-- Dependencies installed: `pip install -r $CHAT_PIXELATE_PATH/requirements.txt`
+- A virtualenv exists at `$CHAT_PIXELATE_PATH/.venv` with dependencies installed:
+  ```bash
+  apt install -y python3.12-venv
+  python3 -m venv $CHAT_PIXELATE_PATH/.venv
+  $CHAT_PIXELATE_PATH/.venv/bin/pip install -r $CHAT_PIXELATE_PATH/requirements.txt
+  ```
 
 No Docker required — runs directly on the host.
 
@@ -41,7 +46,7 @@ cp ~/.openclaw/media/inbound/*.{png,jpg,jpeg} "$IN_DIR/" 2>/dev/null || true
 ### 2. Run pixelation
 
 ```bash
-python3 "$CHAT_PIXELATE_PATH/process.py" \
+"$CHAT_PIXELATE_PATH/.venv/bin/python3" "$CHAT_PIXELATE_PATH/process.py" \
     "$IN_DIR" \
     "$OUT_DIR" \
     [OPTIONS]   # see Element Selection and Option Configuration below
@@ -91,6 +96,7 @@ Translate the user's intent to `--elements`. Default (no flag) pixelates all thr
 
 ```bash
 export CHAT_PIXELATE_PATH=/home/ubuntu/chat_screenshot_pixelate  # adjust if needed
+PYTHON="$CHAT_PIXELATE_PATH/.venv/bin/python3"
 
 JOB_ID="job_$(date +%s)"
 IN_DIR="/tmp/chat_pixelate_in_$JOB_ID"
@@ -100,7 +106,7 @@ mkdir -p "$IN_DIR" "$OUT_DIR"
 cp ~/.openclaw/media/inbound/*.{png,jpg,jpeg} "$IN_DIR/" 2>/dev/null || true
 
 # Default: pixelate all three elements with soft blur
-python3 "$CHAT_PIXELATE_PATH/process.py" "$IN_DIR" "$OUT_DIR"
+"$PYTHON" "$CHAT_PIXELATE_PATH/process.py" "$IN_DIR" "$OUT_DIR"
 
 echo "=== Output images ==="
 ls "$OUT_DIR/"*_pixelated.png
@@ -110,16 +116,16 @@ ls "$OUT_DIR/"*_pixelated.png
 
 ```bash
 # Only blur profile pics (avatars)
-python3 "$CHAT_PIXELATE_PATH/process.py" "$IN_DIR" "$OUT_DIR" \
+"$PYTHON" "$CHAT_PIXELATE_PATH/process.py" "$IN_DIR" "$OUT_DIR" \
     --elements profile_pic
 
 # Hide chat name and display names, block mosaic style
-python3 "$CHAT_PIXELATE_PATH/process.py" "$IN_DIR" "$OUT_DIR" \
+"$PYTHON" "$CHAT_PIXELATE_PATH/process.py" "$IN_DIR" "$OUT_DIR" \
     --elements chat_name,display_name \
     --pixel-mode B
 
 # Hide avatars and nicknames, soft blur
-python3 "$CHAT_PIXELATE_PATH/process.py" "$IN_DIR" "$OUT_DIR" \
+"$PYTHON" "$CHAT_PIXELATE_PATH/process.py" "$IN_DIR" "$OUT_DIR" \
     --elements profile_pic,display_name \
     --pixel-mode A
 ```
