@@ -10,10 +10,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Open-source community files: `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`
-- GitHub issue templates (bug report, feature request)
-- Pull request template
-- GitHub Actions CI workflow (lint + import check)
+- `--bbox-json` flag on `process.py`: accepts pre-computed bounding-box JSON (or `-` for stdin), bypassing the vision API entirely. No `OPENROUTER_API_KEY` is required when this flag is used. Input directory must contain exactly one image per invocation.
+- OpenClaw skill (`SKILL.md`) now uses the agent's own built-in AI for image analysis instead of routing through OpenRouter — zero credentials required, zero runtime network calls.
+- `metadata` frontmatter in `SKILL.md`: explicit `requires.bins` gates (`python3`, `git`) and `homepage` link so OpenClaw can surface and gate the skill correctly.
+- Pinned audited commit SHA annotated in the `git clone` step of the skill Setup block.
+- `.env.example` clarifying comment: key is only needed for standalone (non-OpenClaw) use.
+
+### Changed
+- `SKILL.md` workflow restructured for correctness: each image is now analysed and pixelated in its own isolated invocation (separate `$IN_DIR` per image). Previously a single `process.py` call covered all images with one shared bounding-box dict, which would silently apply one image's coordinates to all others.
+- `process.py` enforces the single-image constraint when `--bbox-json` is supplied: exits with a clear error if more than one image is found in the input directory.
+- `vision.py`: replaced bare `assert` on missing API key with a `ValueError` whose message explicitly identifies the standalone-only context and points OpenClaw users to `--bbox-json`.
+- `dotenv` and `vision` imports are now lazy (loaded only in the standalone code path), so `process.py` has zero module-level side-effects and passes ruff E402.
+- Removed three spurious `f`-string prefixes (ruff F541).
+- Removed `OpenRouter` badge from README header; updated Features table, How It Works diagrams, Requirements, Installation, Usage, Configuration, and module descriptions to accurately reflect both operating modes.
+
+### Security
+- Eliminated credential prompt and `.env` write from the OpenClaw skill Setup block. No secret is ever requested, stored on disk, or written by the skill.
+- Narrowed inbound file copy from a wildcard glob (`*.{png,jpg,jpeg}`) to explicit per-image copy, limiting file-system access to only the files the user sent.
 
 ---
 

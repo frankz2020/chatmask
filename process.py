@@ -14,6 +14,16 @@ Usage:
                      --elements profile_pic
                      --elements chat_name,display_name
     --pixel-mode   A=soft blur/mist (default) | B=hard block mosaic
+    --bbox-json    Pre-computed bounding-box JSON string (or '-' to read from
+                   stdin). When provided, the vision API call is skipped entirely
+                   and no OPENROUTER_API_KEY is required. Intended for use when
+                   the caller (e.g. an OpenClaw agent) has already analysed the
+                   image. The JSON must match the schema returned by the vision
+                   model: {"chat_names": [...], "profile_pics": [...],
+                   "display_names": [...]} with normalised 0-1000 coordinates.
+                   When --bbox-json is supplied, input_dir must contain exactly
+                   one image. To process multiple images, invoke process.py once
+                   per image with each image in its own input directory.
 
 Input spec:
     input_dir may contain .png, .jpg, .jpeg files.
@@ -30,10 +40,6 @@ import shutil
 import sys
 from pathlib import Path
 
-from dotenv import load_dotenv
-
-load_dotenv(dotenv_path=Path(__file__).parent / ".env")
-
 from pixelate import (
     load_image,
     save_image,
@@ -41,7 +47,6 @@ from pixelate import (
     strong_pixelate_region,
 )
 from prompts import build_bbox_prompt
-from vision import call_vision
 
 _VALID_ELEMENTS = {"chat_name", "profile_pic", "display_name"}
 _KEY_MAP = {
@@ -96,10 +101,13 @@ def _process_image(
     output_dir: Path,
     elements: set,
     pixel_mode: str,
+    bbox_json: dict | None = None,
 ) -> dict:
     """
     Process a single image. Returns a result dict with keys: path, success, skipped, reason.
     On API or parse failure, copies the original to output unchanged.
+
+    When bbox_json is provided it is used directly and the vision API is not called.
     """
     out_path = output_dir / f"{image_path.stem}_pixelated.png"
 
@@ -107,34 +115,41 @@ def _process_image(
     orig_width, orig_height = image.size
     print(f"[process] {image_path.name} ({orig_width}x{orig_height})")
 
-    prompt = build_bbox_prompt(elements)
+    if bbox_json is not None:
+        parsed = bbox_json
+    else:
+        from dotenv import load_dotenv
 
-    try:
-        response = call_vision(str(image_path), prompt)
-    except Exception as exc:
-        print(f"[process] WARNING: vision API failed for {image_path.name}: {exc}")
-        print(f"[process] Copying original to output unchanged.")
-        shutil.copy2(image_path, out_path)
-        return {
-            "path": str(out_path),
-            "success": False,
-            "skipped": True,
-            "reason": f"API error: {exc}",
-        }
+        load_dotenv(dotenv_path=Path(__file__).parent / ".env")
+        from vision import call_vision
 
-    try:
-        parsed = _parse_json_response(response)
-    except (AssertionError, json.JSONDecodeError, ValueError) as exc:
-        print(f"[process] WARNING: JSON parse failed for {image_path.name}: {exc}")
-        print(f"[process] Raw response (truncated): {response[:300]}")
-        print(f"[process] Copying original to output unchanged.")
-        shutil.copy2(image_path, out_path)
-        return {
-            "path": str(out_path),
-            "success": False,
-            "skipped": True,
-            "reason": f"Parse error: {exc}",
-        }
+        prompt = build_bbox_prompt(elements)
+        try:
+            response = call_vision(str(image_path), prompt)
+        except Exception as exc:
+            print(f"[process] WARNING: vision API failed for {image_path.name}: {exc}")
+            print("[process] Copying original to output unchanged.")
+            shutil.copy2(image_path, out_path)
+            return {
+                "path": str(out_path),
+                "success": False,
+                "skipped": True,
+                "reason": f"API error: {exc}",
+            }
+
+        try:
+            parsed = _parse_json_response(response)
+        except (AssertionError, json.JSONDecodeError, ValueError) as exc:
+            print(f"[process] WARNING: JSON parse failed for {image_path.name}: {exc}")
+            print(f"[process] Raw response (truncated): {response[:300]}")
+            print("[process] Copying original to output unchanged.")
+            shutil.copy2(image_path, out_path)
+            return {
+                "path": str(out_path),
+                "success": False,
+                "skipped": True,
+                "reason": f"Parse error: {exc}",
+            }
 
     bboxes = []
     for element in elements:
@@ -197,6 +212,18 @@ def main() -> None:
         dest="pixel_mode",
         help="Pixelation style: A=soft blur/mist (default), B=hard block mosaic",
     )
+    parser.add_argument(
+        "--bbox-json",
+        default=None,
+        dest="bbox_json",
+        help=(
+            "Pre-computed bounding-box JSON (or '-' to read from stdin). "
+            "When supplied, the OpenRouter vision API is not called and no "
+            "OPENROUTER_API_KEY is required. "
+            "input_dir must contain exactly one image when this flag is used — "
+            "run once per image with each image's own JSON."
+        ),
+    )
     args = parser.parse_args()
 
     in_dir = Path(args.input_dir)
@@ -207,22 +234,42 @@ def main() -> None:
     elements = _parse_elements(args.elements)
     print(f"[process] Elements: {sorted(elements)}, mode: {args.pixel_mode}")
 
+    bbox_json: dict | None = None
+    if args.bbox_json is not None:
+        raw = sys.stdin.read() if args.bbox_json == "-" else args.bbox_json
+        try:
+            bbox_json = _parse_json_response(raw)
+        except (AssertionError, json.JSONDecodeError, ValueError) as exc:
+            print(
+                f"[process] ERROR: could not parse --bbox-json: {exc}", file=sys.stderr
+            )
+            sys.exit(1)
+
     images = sorted(p for p in in_dir.iterdir() if p.suffix.lower() in _IMAGE_EXTS)
     if not images:
         print(f"No images found in {in_dir}", file=sys.stderr)
+        sys.exit(1)
+
+    if bbox_json is not None and len(images) > 1:
+        print(
+            "[process] ERROR: --bbox-json supplies bounding boxes for one image only, "
+            f"but {len(images)} images were found in {in_dir}. "
+            "Run process.py once per image, each time with that image's own --bbox-json.",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     print(f"[process] Processing {len(images)} image(s) from {in_dir} -> {out_dir}")
 
     results = []
     for img_path in images:
-        result = _process_image(img_path, out_dir, elements, args.pixel_mode)
+        result = _process_image(img_path, out_dir, elements, args.pixel_mode, bbox_json)
         results.append(result)
 
     processed = sum(1 for r in results if r["success"])
     skipped = sum(1 for r in results if r["skipped"])
 
-    print(f"\n=== Summary ===")
+    print("\n=== Summary ===")
     print(f"Total:     {len(results)}")
     print(f"Processed: {processed}")
     print(f"Skipped:   {skipped}")

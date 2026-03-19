@@ -25,10 +25,14 @@ _API_MAX_DIM = 1024
 
 def _get_api_key() -> str:
     key = os.getenv("OPENROUTER_API_KEY")
-    assert key, (
-        "OPENROUTER_API_KEY environment variable is required. "
-        "Set it with: export OPENROUTER_API_KEY='your-key-here'"
-    )
+    if not key:
+        raise ValueError(
+            "OPENROUTER_API_KEY is required for standalone (non-OpenClaw) use. "
+            "Get a free key at https://openrouter.ai/keys and set it with: "
+            "export OPENROUTER_API_KEY='sk-or-...'"
+            "\n\nIf you are running chatmask via the OpenClaw skill, use "
+            "--bbox-json instead — no API key is needed."
+        )
     return key
 
 

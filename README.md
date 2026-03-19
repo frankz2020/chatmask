@@ -7,7 +7,6 @@
 [![CI](https://github.com/frankz2020/chatmask/actions/workflows/ci.yml/badge.svg)](https://github.com/frankz2020/chatmask/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue?logo=python&logoColor=white)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![OpenRouter](https://img.shields.io/badge/powered%20by-OpenRouter-purple)](https://openrouter.ai)
 [![Pillow](https://img.shields.io/badge/image%20processing-Pillow-orange)](https://python-pillow.org)
 [![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-2.1-4baaaa)](CODE_OF_CONDUCT.md)
 
@@ -18,7 +17,7 @@ Supports English and Chinese UIs.
 
 ---
 
-> **How it works in one sentence:** A Gemini vision model (via OpenRouter) finds the sensitive regions; [Pillow](https://python-pillow.org) blurs them locally. Only compressed image bytes leave your machine — no text, names, or message content are ever sent to the API.
+> **How it works in one sentence:** A vision model finds the sensitive regions; [Pillow](https://python-pillow.org) blurs them locally. Via the OpenClaw skill, your agent's own AI is the vision model — no extra API key needed. In standalone mode, a Gemini vision model via OpenRouter locates regions; only compressed image bytes leave your machine — no text, names, or message content are ever sent.
 
 ---
 
@@ -43,43 +42,39 @@ Supports English and Chinese UIs.
 
 | | |
 |---|---|
-| 🔒 **Privacy-first** | Only compressed image bytes reach the API. No text, usernames, or message content is ever included in the prompt. |
+| 🔒 **Privacy-first** | Via the OpenClaw skill, all processing is local — no data leaves the machine. In standalone mode, only compressed image bytes reach the API; no text, usernames, or message content is ever sent. |
 | 📱 **App-agnostic** | Works on screenshots from any messaging app, in any UI language. |
 | 🎯 **Selective redaction** | Hide chat names, profile pictures, and display names independently — or all at once. |
 | 🎨 **Two visual styles** | Soft Gaussian blur (mode A) for a natural look, or hard block mosaic (mode B) for classic censorship. |
-| ♻️ **Fault-tolerant** | If the API or JSON parsing fails for an image, the original is copied unchanged and the batch continues — it never crashes. |
-| 🔁 **Auto-retry** | Up to 3 attempts with exponential back-off on API failure. |
+| ♻️ **Fault-tolerant** | If the vision step or JSON parsing fails for an image, the original is copied unchanged and the batch continues — it never crashes. |
+| 🔁 **Auto-retry** | Standalone mode: up to 3 attempts with exponential back-off on API failure. |
 | 🌐 **Proxy support** | Configurable via standard `HTTP_PROXY` / `HTTPS_PROXY` environment variables. |
+| 🤖 **OpenClaw native** | First-class skill: no API key, no credential storage, per-image analysis by the agent's own AI. |
 
 ---
 
 ## How It Works
 
+chatmask supports two operating modes that share the same pixelation engine.
+
+### OpenClaw skill mode (no API key)
+
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                      Input image                        │
+│              User sends screenshot to agent             │
 └────────────────────────┬────────────────────────────────┘
                          │
                          ▼
 ┌─────────────────────────────────────────────────────────┐
-│  vision.py                                              │
-│  • Compress to ≤ 1024px on longest side                 │
-│  • Encode as base64 JPEG                                │
-│  • POST to OpenRouter  (gemini-3.1-pro-preview)         │
+│  OpenClaw agent (your existing AI)                      │
+│  • Analyses the image with its own vision model         │
+│  • Emits bounding-box JSON (normalised 0-1000 coords)   │
 └────────────────────────┬────────────────────────────────┘
-                         │
+                         │  --bbox-json  (no network call)
                          ▼
-┌─────────────────────────────────────────────────────────┐
-│  prompts.py                                             │
-│  • App-agnostic, element-aware JSON prompt              │
-│  • Requests bounding boxes for selected elements only   │
-└────────────────────────┬────────────────────────────────┘
-                         │
-                         ▼  normalized coords (0 – 1000)
 ┌─────────────────────────────────────────────────────────┐
 │  process.py                                             │
-│  • Parse JSON response                                  │
-│  • Scale normalized coords → full-resolution pixels     │
+│  • Parses JSON, scales coords → full-resolution pixels  │
 └────────────────────────┬────────────────────────────────┘
                          │
                          ▼
@@ -95,22 +90,50 @@ Supports English and Chinese UIs.
 └─────────────────────────────────────────────────────────┘
 ```
 
-Normalized coordinates (0–1000) are mapped back to the original full-resolution image before pixelation, so output quality is fully independent of API compression.
+### Standalone CLI mode (OpenRouter API key required)
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                      Input image                        │
+└────────────────────────┬────────────────────────────────┘
+                         │
+                         ▼
+┌─────────────────────────────────────────────────────────┐
+│  vision.py                                              │
+│  • Compress to ≤ 1024px on longest side                 │
+│  • Encode as base64 JPEG                                │
+│  • POST to OpenRouter  (gemini-3.1-pro-preview)         │
+└────────────────────────┬────────────────────────────────┘
+                         │  normalized coords (0 – 1000)
+                         ▼
+┌─────────────────────────────────────────────────────────┐
+│  process.py  →  pixelate.py                             │
+│  • Parse response, scale coords, apply blur/mosaic      │
+└────────────────────────┬────────────────────────────────┘
+                         │
+                         ▼
+┌─────────────────────────────────────────────────────────┐
+│              {stem}_pixelated.png                       │
+└─────────────────────────────────────────────────────────┘
+```
+
+Normalized coordinates (0–1000) are mapped back to the original full-resolution image before pixelation, so output quality is fully independent of any compression applied during analysis.
 
 ---
 
 ## Requirements
 
 - **Python 3.10+**
-- An **[OpenRouter](https://openrouter.ai/keys) API key** — this is required. chatmask uses the Gemini vision model via OpenRouter to locate elements. A free tier key is available at [openrouter.ai/keys](https://openrouter.ai/keys); no credit card needed to get started.
 
 | Package | Version | Purpose |
 |---|---|---|
 | [`Pillow`](https://python-pillow.org) | ≥ 10.0.0 | Image loading, blurring, mosaic pixelation |
-| [`requests`](https://requests.readthedocs.io) | ≥ 2.31.0 | HTTP calls to the OpenRouter API |
-| [`python-dotenv`](https://pypi.org/project/python-dotenv/) | ≥ 1.0.0 | Load API key from a `.env` file |
+| [`requests`](https://requests.readthedocs.io) | ≥ 2.31.0 | HTTP calls to the OpenRouter API (standalone mode only) |
+| [`python-dotenv`](https://pypi.org/project/python-dotenv/) | ≥ 1.0.0 | Load API key from a `.env` file (standalone mode only) |
 
-> **Privacy note:** Only compressed image bytes are sent to the API. No text, usernames, or message content is ever included in the prompt or leaves your machine.
+**OpenRouter API key:** only required for standalone CLI use. When running via the OpenClaw skill, the agent's own AI handles image analysis and no key is needed. Get a free key at [openrouter.ai/keys](https://openrouter.ai/keys) if you need standalone mode.
+
+> **Privacy note:** In standalone mode, only compressed image bytes are sent to the API. No text, usernames, or message content is ever included in the prompt or leaves your machine. In OpenClaw skill mode, no data leaves the local Python script at all.
 
 ---
 
@@ -127,8 +150,13 @@ source .venv/bin/activate   # Windows: .venv\Scripts\activate
 
 # 3. Install dependencies
 pip install -r requirements.txt
+```
 
-# 4. Configure your API key
+**OpenClaw skill users:** that's it — no API key needed. See [OpenClaw Skill](#openclaw-skill).
+
+**Standalone CLI users:** also configure your OpenRouter key:
+
+```bash
 cp .env.example .env
 ```
 
@@ -145,13 +173,14 @@ Get a free key at [openrouter.ai/keys](https://openrouter.ai/keys) — no credit
 ## Usage
 
 ```
-python process.py <input_dir> <output_dir> [--elements <list>] [--pixel-mode <A|B>]
+python process.py <input_dir> <output_dir> [--elements <list>] [--pixel-mode <A|B>] [--bbox-json <json>]
 ```
 
 ### Quick examples
 
 ```bash
 # Redact everything — chat name, profile pics, and display names (default)
+# Standalone: calls OpenRouter API per image
 python process.py ./input ./output
 
 # Hide only profile pictures
@@ -159,6 +188,13 @@ python process.py ./input ./output --elements profile_pic
 
 # Hide chat name + display names, block mosaic style
 python process.py ./input ./output --elements chat_name,display_name --pixel-mode B
+
+# OpenClaw skill mode: skip the API entirely — pass pre-analysed bounding boxes
+# (input_dir must contain exactly one image when --bbox-json is used)
+python process.py ./input ./output --bbox-json '{"chat_names":[...],"profile_pics":[...],"display_names":[...]}'
+
+# Read bounding-box JSON from stdin
+cat bbox.json | python process.py ./input ./output --bbox-json -
 ```
 
 ### What gets hidden
@@ -177,6 +213,7 @@ python process.py ./input ./output --elements chat_name,display_name --pixel-mod
 |---|---|---|
 | `--elements` | `chat_name,profile_pic,display_name` | Comma-separated elements to redact |
 | `--pixel-mode` | `A` | `A` = soft blur/mist · `B` = hard block mosaic |
+| `--bbox-json` | *(none)* | Pre-analysed bounding-box JSON string or `-` for stdin. Skips the vision API entirely. Input dir must contain exactly one image. |
 
 ### Output
 
@@ -240,10 +277,11 @@ Logs are written to `<output_root>/logs/<job_name>.log`.
 ## Configuration
 
 All settings are loaded from `.env` (or real environment variables) at startup.
+The `.env` file is only needed for standalone CLI mode.
 
 | Variable | Required | Description |
 |---|---|---|
-| `OPENROUTER_API_KEY` | **Yes** | Your OpenRouter API key — get one free at [openrouter.ai/keys](https://openrouter.ai/keys) |
+| `OPENROUTER_API_KEY` | Standalone only | Your OpenRouter API key — get one free at [openrouter.ai/keys](https://openrouter.ai/keys). Not needed when using `--bbox-json` or the OpenClaw skill. |
 | `HTTP_PROXY` / `http_proxy` | No | HTTP proxy for API calls |
 | `HTTPS_PROXY` / `https_proxy` | No | HTTPS proxy for API calls |
 
@@ -270,11 +308,11 @@ chatmask/
 <details>
 <summary><strong>Module responsibilities</strong></summary>
 
-**`process.py`** — Parses CLI arguments, discovers input images, calls the vision API, converts normalized coordinates to pixel coordinates, applies pixelation, and saves output. On any per-image failure the original is copied and processing continues.
+**`process.py`** — Parses CLI arguments, discovers input images, and orchestrates the pipeline. Accepts `--bbox-json` for API-free operation (single image per call); falls back to `vision.py` for standalone use. Converts normalized coordinates to pixel coordinates, applies pixelation, and saves output. On any per-image failure the original is copied and processing continues.
 
-**`vision.py`** — Compresses the image to ≤ 1024px on the longest side before sending (reduces API cost and latency). Encodes as base64 JPEG and POSTs to the OpenRouter API. Retries up to 3 times with exponential back-off. Reads proxy settings from the environment.
+**`vision.py`** — Used in standalone mode only. Compresses the image to ≤ 1024px on the longest side before sending (reduces API cost and latency). Encodes as base64 JPEG and POSTs to the OpenRouter API. Retries up to 3 times with exponential back-off. Reads proxy settings from the environment.
 
-**`prompts.py`** — Builds an app-agnostic, element-aware prompt that asks the vision model to return bounding boxes only for the requested elements. Uses a 0–1000 normalized coordinate space so the prompt is resolution-independent.
+**`prompts.py`** — Builds an app-agnostic, element-aware prompt that asks a vision model to return bounding boxes only for the requested elements. Uses a 0–1000 normalized coordinate space so the prompt is resolution-independent. Used by `vision.py` in standalone mode; the same schema is replicated verbatim in `SKILL.md` for the OpenClaw agent.
 
 **`pixelate.py`** — Applies pixelation to a bounding-box region of a PIL Image. `mist_pixelate_region` uses Gaussian blur with a feathered alpha mask. `strong_pixelate_region` uses nearest-neighbour resize to create a block mosaic. Both accept `(x, y, width, height)` bounding boxes in pixels.
 
@@ -284,13 +322,25 @@ chatmask/
 
 ## OpenClaw Skill
 
-`docs/openclaw_skill/SKILL.md` is a skill definition for the [OpenClaw](https://openclaw.ai) AI agent platform. Install it once and you can send chat screenshots to any OpenClaw-connected channel and ask in plain English or Chinese — the agent clones the repo, installs dependencies, prompts you for your API key on first run, and processes your images automatically.
+`docs/openclaw_skill/SKILL.md` is a skill definition for the [OpenClaw](https://openclaw.ai) AI agent platform. Install it once and you can send chat screenshots to any OpenClaw-connected channel and ask in plain English or Chinese — the agent handles everything automatically.
 
-### What you need before installing
+### Two ways to use chatmask
+
+| | OpenClaw skill | Standalone CLI |
+|---|---|---|
+| **API key required?** | **No** — OpenClaw's own AI locates the regions | Yes — requires `OPENROUTER_API_KEY` |
+| **Network calls at runtime?** | **None** — only local image processing | One call per image to OpenRouter |
+| **Setup** | Clone + pip install (one-time) | Clone + pip install + set `.env` |
+| **Best for** | Day-to-day use via chat/voice | Scripts, CI, headless automation |
+
+**OpenClaw skill path:** The agent analyses each screenshot using its own built-in vision capabilities to produce bounding-box coordinates, then passes them to `process.py --bbox-json`. The Python script performs only local image manipulation — Pillow blurs the specified regions. No credentials are stored.
+
+**Standalone CLI path:** `process.py` calls the OpenRouter API (`vision.py`) to get coordinates. You need an `OPENROUTER_API_KEY` in `.env`. Only compressed image bytes are sent — no text, usernames, or message content.
+
+### What you need before installing the OpenClaw skill
 
 | Requirement | Notes |
 |---|---|
-| An [OpenRouter API key](https://openrouter.ai/keys) | Free tier available, no credit card needed. The skill will prompt you for it on first use. |
 | OpenClaw running on a machine with Python 3.10+ and `git` | The skill auto-installs everything else. |
 | Internet access on that machine | Needed once to clone the repo and install deps. |
 
@@ -320,9 +370,9 @@ User: "打码聊天截图"
   → OpenClaw reads SKILL.md
   → Clones https://github.com/frankz2020/chatmask.git  (skipped if already present)
   → Creates .venv and installs requirements             (skipped if already present)
-  → Detects missing API key → asks user to provide it
-  → User pastes key → skill writes it to .env
-  → Processes image → returns pixelated result
+  → Agent analyses the image with its own vision model
+  → Passes bounding-box JSON to process.py --bbox-json (no API key needed)
+  → Returns pixelated result
 ```
 
 Subsequent runs skip all setup steps and go straight to processing.
