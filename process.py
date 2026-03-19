@@ -23,6 +23,7 @@ Output spec:
     Images that fail API/parse steps are copied as-is with a warning.
     A summary is printed to stdout on completion.
 """
+
 import argparse
 import json
 import shutil
@@ -33,7 +34,12 @@ from dotenv import load_dotenv
 
 load_dotenv(dotenv_path=Path(__file__).parent / ".env")
 
-from pixelate import load_image, save_image, mist_pixelate_region, strong_pixelate_region
+from pixelate import (
+    load_image,
+    save_image,
+    mist_pixelate_region,
+    strong_pixelate_region,
+)
 from prompts import build_bbox_prompt
 from vision import call_vision
 
@@ -109,7 +115,12 @@ def _process_image(
         print(f"[process] WARNING: vision API failed for {image_path.name}: {exc}")
         print(f"[process] Copying original to output unchanged.")
         shutil.copy2(image_path, out_path)
-        return {"path": str(out_path), "success": False, "skipped": True, "reason": f"API error: {exc}"}
+        return {
+            "path": str(out_path),
+            "success": False,
+            "skipped": True,
+            "reason": f"API error: {exc}",
+        }
 
     try:
         parsed = _parse_json_response(response)
@@ -118,7 +129,12 @@ def _process_image(
         print(f"[process] Raw response (truncated): {response[:300]}")
         print(f"[process] Copying original to output unchanged.")
         shutil.copy2(image_path, out_path)
-        return {"path": str(out_path), "success": False, "skipped": True, "reason": f"Parse error: {exc}"}
+        return {
+            "path": str(out_path),
+            "success": False,
+            "skipped": True,
+            "reason": f"Parse error: {exc}",
+        }
 
     bboxes = []
     for element in elements:
@@ -161,7 +177,9 @@ def main() -> None:
             "  python3 process.py ./in ./out --elements chat_name,display_name --pixel-mode B\n"
         ),
     )
-    parser.add_argument("input_dir", help="Directory containing input images (.png/.jpg/.jpeg)")
+    parser.add_argument(
+        "input_dir", help="Directory containing input images (.png/.jpg/.jpeg)"
+    )
     parser.add_argument("output_dir", help="Directory for output images")
     parser.add_argument(
         "--elements",

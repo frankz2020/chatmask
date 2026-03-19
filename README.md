@@ -33,7 +33,7 @@ Supports English and Chinese UIs.
 - [Batch Processing](#batch-processing)
 - [Configuration](#configuration)
 - [Project Structure](#project-structure)
-- [OpenClaw Integration](#openclaw-integration)
+- [OpenClaw Skill](#openclaw-skill)
 - [Contributing](#contributing)
 - [License](#license)
 
@@ -102,13 +102,15 @@ Normalized coordinates (0–1000) are mapped back to the original full-resolutio
 ## Requirements
 
 - **Python 3.10+**
-- An [OpenRouter](https://openrouter.ai/keys) API key (free tier available)
+- An **[OpenRouter](https://openrouter.ai/keys) API key** — this is required. chatmask uses the Gemini vision model via OpenRouter to locate elements. A free tier key is available at [openrouter.ai/keys](https://openrouter.ai/keys); no credit card needed to get started.
 
 | Package | Version | Purpose |
 |---|---|---|
 | [`Pillow`](https://python-pillow.org) | ≥ 10.0.0 | Image loading, blurring, mosaic pixelation |
 | [`requests`](https://requests.readthedocs.io) | ≥ 2.31.0 | HTTP calls to the OpenRouter API |
 | [`python-dotenv`](https://pypi.org/project/python-dotenv/) | ≥ 1.0.0 | Load API key from a `.env` file |
+
+> **Privacy note:** Only compressed image bytes are sent to the API. No text, usernames, or message content is ever included in the prompt or leaves your machine.
 
 ---
 
@@ -119,20 +121,24 @@ Normalized coordinates (0–1000) are mapped back to the original full-resolutio
 git clone https://github.com/frankz2020/chatmask.git
 cd chatmask
 
-# 2. Install dependencies
+# 2. (Recommended) create a virtual environment
+python3 -m venv .venv
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
+
+# 3. Install dependencies
 pip install -r requirements.txt
 
-# 3. Configure your API key
+# 4. Configure your API key
 cp .env.example .env
 ```
 
-Then open `.env` and set your key:
+Open `.env` and paste your key:
 
 ```dotenv
 OPENROUTER_API_KEY=sk-or-v1-...
 ```
 
-Get a free key at [openrouter.ai/keys](https://openrouter.ai/keys).
+Get a free key at [openrouter.ai/keys](https://openrouter.ai/keys) — no credit card required.
 
 ---
 
@@ -237,7 +243,7 @@ All settings are loaded from `.env` (or real environment variables) at startup.
 
 | Variable | Required | Description |
 |---|---|---|
-| `OPENROUTER_API_KEY` | **Yes** | Your OpenRouter API key |
+| `OPENROUTER_API_KEY` | **Yes** | Your OpenRouter API key — get one free at [openrouter.ai/keys](https://openrouter.ai/keys) |
 | `HTTP_PROXY` / `http_proxy` | No | HTTP proxy for API calls |
 | `HTTPS_PROXY` / `https_proxy` | No | HTTPS proxy for API calls |
 
@@ -276,34 +282,59 @@ chatmask/
 
 ---
 
-## OpenClaw Integration
+## OpenClaw Skill
 
-`docs/openclaw_skill/SKILL.md` is a skill definition for the [OpenClaw](https://openclaw.ai) AI agent platform. It lets you send a screenshot to an OpenClaw-connected channel and ask in plain English or Chinese — the agent picks the right flags and runs the pipeline automatically.
+`docs/openclaw_skill/SKILL.md` is a skill definition for the [OpenClaw](https://openclaw.ai) AI agent platform. Install it once and you can send chat screenshots to any OpenClaw-connected channel and ask in plain English or Chinese — the agent clones the repo, installs dependencies, prompts you for your API key on first run, and processes your images automatically.
 
-<details>
-<summary><strong>Setup instructions</strong></summary>
+### What you need before installing
+
+| Requirement | Notes |
+|---|---|
+| An [OpenRouter API key](https://openrouter.ai/keys) | Free tier available, no credit card needed. The skill will prompt you for it on first use. |
+| OpenClaw running on a machine with Python 3.10+ and `git` | The skill auto-installs everything else. |
+| Internet access on that machine | Needed once to clone the repo and install deps. |
+
+### Install the skill
 
 ```bash
-# 1. Copy the skill into your OpenClaw workspace
-mkdir -p ~/.openclaw/workspace/skills/chat-screenshot-pixelate
-cp docs/openclaw_skill/SKILL.md ~/.openclaw/workspace/skills/chat-screenshot-pixelate/
+# 1. Copy the skill file into your OpenClaw workspace
+mkdir -p ~/.openclaw/workspace/skills/chatmask
+cp docs/openclaw_skill/SKILL.md ~/.openclaw/workspace/skills/chatmask/
 
-# 2. Tell the skill where chatmask lives
-export CHAT_PIXELATE_PATH="/path/to/chatmask"
-
-# 3. Reload skills
-openclaw skill reload
+# 2. Reload skills
+openclaw skills
 ```
 
-</details>
+That's it. The skill handles cloning, venv creation, and dependency installation automatically the first time it runs.
 
-Send a screenshot through your channel (Feishu, Telegram, etc.) and say:
+> **Default install path:** `~/.openclaw/skills/chatmask`
+> To use a custom location, set `CHAT_PIXELATE_PATH` before the skill runs:
+> ```bash
+> export CHAT_PIXELATE_PATH="/your/preferred/path"
+> ```
+
+### First-run flow
+
+```
+User: "打码聊天截图"
+  → OpenClaw reads SKILL.md
+  → Clones https://github.com/frankz2020/chatmask.git  (skipped if already present)
+  → Creates .venv and installs requirements             (skipped if already present)
+  → Detects missing API key → asks user to provide it
+  → User pastes key → skill writes it to .env
+  → Processes image → returns pixelated result
+```
+
+Subsequent runs skip all setup steps and go straight to processing.
+
+### Trigger phrases
 
 | English | Chinese |
 |---|---|
 | *"Pixelate this chat screenshot"* | *"打码聊天截图"* |
 | *"Hide the avatars and names"* | *"隐藏头像和昵称"* |
 | *"Only blur the profile pictures"* | *"只模糊头像"* |
+| *"Redact all identities, block style"* | *"马赛克方式隐藏全部"* |
 
 ---
 

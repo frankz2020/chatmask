@@ -52,12 +52,13 @@ def build_bbox_prompt(elements: set) -> str:
         Prompt string to send to the vision model.
     """
     assert elements, "elements must be non-empty"
-    assert elements <= _VALID_ELEMENTS, f"Invalid elements: {elements - _VALID_ELEMENTS}"
+    assert elements <= _VALID_ELEMENTS, (
+        f"Invalid elements: {elements - _VALID_ELEMENTS}"
+    )
 
     requested_keys = [_KEY_MAP[e] for e in sorted(elements)]
     element_blocks = "\n".join(
-        f"{i + 1}. {_ELEMENT_DESCRIPTIONS[e]}"
-        for i, e in enumerate(sorted(elements))
+        f"{i + 1}. {_ELEMENT_DESCRIPTIONS[e]}" for i, e in enumerate(sorted(elements))
     )
 
     json_schema_fields = "\n".join(

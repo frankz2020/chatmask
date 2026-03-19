@@ -9,6 +9,7 @@ Usage:
     from vision import call_vision
     response_text = call_vision("screenshot.png", prompt)
 """
+
 import base64
 import os
 import time
@@ -114,7 +115,9 @@ def call_vision(image_path: str, prompt: str, max_retries: int = 3) -> str:
             last_exc = exc
             if attempt < max_retries:
                 wait = attempt * 2
-                print(f"[vision] Attempt {attempt} failed: {exc}. Retrying in {wait}s...")
+                print(
+                    f"[vision] Attempt {attempt} failed: {exc}. Retrying in {wait}s..."
+                )
                 time.sleep(wait)
             else:
                 print(f"[vision] All {max_retries} attempts failed.")

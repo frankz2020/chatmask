@@ -13,6 +13,7 @@ Usage:
     img = mist_pixelate_region(img, (50, 100, 200, 60))
     save_image(img, "output.png")
 """
+
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFilter
 
